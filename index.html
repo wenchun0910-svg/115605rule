@@ -30,11 +30,10 @@
             left: 0;
             background-color: #f9fafb;
             z-index: 10;
-            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
         }
         .sticky-col-2 {
             position: sticky;
-            left: 3.5rem; /* 預估第一欄寬度 */
+            left: 4rem; /* 第一欄(座號)寬度固定為 4rem (w-16) */
             background-color: #f9fafb;
             z-index: 10;
             box-shadow: 2px 0 5px rgba(0,0,0,0.05);
@@ -354,12 +353,20 @@
             visibleIndices.forEach((index) => {
                 const header = appState.headers[index];
                 const th = document.createElement('th');
-                th.className = 'py-3 px-4 whitespace-nowrap border-b border-slate-200';
+                th.className = 'py-3 px-4 border-b border-slate-200';
                 th.textContent = header;
                 
-                // 固定前兩欄
-                if (index === 0) th.classList.add('sticky-col-1');
-                if (index === 1) th.classList.add('sticky-col-2');
+                // 寬度與固定欄位設定
+                if (index === 0) {
+                    th.classList.add('sticky-col-1', 'w-16', 'min-w-[4rem]', 'text-center');
+                } else if (index === 1) {
+                    th.classList.add('sticky-col-2', 'w-28', 'min-w-[7rem]');
+                } else if (index === visibleIndices[visibleIndices.length - 1] || header.includes('備註')) {
+                    // 讓最後一欄(備註)吸收多餘的表格寬度，避免前面的欄位被拉寬
+                    th.classList.add('w-full', 'min-w-[15rem]');
+                } else {
+                    th.classList.add('whitespace-nowrap');
+                }
                 
                 trHead.appendChild(th);
             });
@@ -386,15 +393,20 @@
                 visibleIndices.forEach((colIndex) => {
                     const header = appState.headers[colIndex];
                     const td = document.createElement('td');
-                    td.className = 'py-2 px-4 border-b border-slate-100 whitespace-nowrap';
+                    td.className = 'py-2 px-4 border-b border-slate-100';
                     let cellValue = rowObj._raw[colIndex] || '';
                     
-                    // 固定前兩欄背景
+                    // 固定前兩欄背景與寬度控制
                     if (colIndex === 0) {
-                        td.classList.add('sticky-col-1', 'text-center', 'font-medium', 'text-slate-500');
-                    }
-                    if (colIndex === 1) {
-                        td.classList.add('sticky-col-2', 'font-bold', 'text-slate-800');
+                        td.classList.add('sticky-col-1', 'text-center', 'font-medium', 'text-slate-500', 'w-16', 'min-w-[4rem]');
+                    } else if (colIndex === 1) {
+                        td.classList.add('sticky-col-2', 'font-bold', 'text-slate-800', 'w-28', 'min-w-[7rem]');
+                    } else if (colIndex === visibleIndices[visibleIndices.length - 1] || header.includes('備註')) {
+                        // 備註欄允許換行並佔據剩餘寬度空間
+                        td.classList.add('w-full', 'min-w-[15rem]');
+                    } else {
+                        // 其他分數與代碼維持不換行且緊湊
+                        td.classList.add('whitespace-nowrap');
                     }
 
                     // 針對「總分」欄位做特殊樣式處理
