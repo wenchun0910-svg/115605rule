@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>班級常規分數查詢系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        /* 自定義捲軸樣式 */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #c1c1c1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #a8a8a8;
+        }
+        
+        /* 表格首兩欄固定，方便手機左右滑動時辨識學生 */
+        .sticky-col-1 {
+            position: sticky;
+            left: 0;
+            background-color: #f9fafb;
+            z-index: 10;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        .sticky-col-2 {
+            position: sticky;
+            left: 3.5rem; /* 預估第一欄寬度 */
+            background-color: #f9fafb;
+            z-index: 10;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.05);
+        }
+        thead .sticky-col-1, thead .sticky-col-2 {
+            background-color: #e5e7eb;
+            z-index: 20;
+        }
+        
+        /* 隱藏載入動畫 */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col">
+
+    <!-- 頂部導航列 -->
+    <header class="bg-blue-600 text-white shadow-md py-4 px-6 sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl sm:text-2xl font-bold flex items-center gap-2">
+                <i class="fas fa-clipboard-check"></i>
+                班級常規分數查詢系統
+            </h1>
+            
+            <!-- 控制區 -->
+            <div class="flex items-center gap-3 w-full sm:w-auto">
+                <div class="relative w-full sm:w-64">
+                    <select id="weekSelector" class="w-full appearance-none bg-blue-700 border border-blue-500 text-white py-2 px-4 pr-8 rounded leading-tight focus:outline-none focus:bg-blue-800 focus:border-blue-400 cursor-pointer transition">
+                        <option value="">載入中...</option>
+                    </select>
+                    <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-2 text-white">
+                        <i class="fas fa-chevron-down text-sm"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- 狀態訊息提示區 (取代 alert) -->
+    <div id="messageBox" class="max-w-7xl mx-auto w-full px-4 mt-4 hidden">
+        <div class="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded shadow-sm flex justify-between items-center" role="alert">
+            <div class="flex items-center gap-2">
+                <i class="fas fa-exclamation-circle"></i>
+                <span id="messageText">發生錯誤。</span>
+            </div>
+            <button onclick="document.getElementById('messageBox').classList.add('hidden')" class="text-red-700 hover:text-red-900">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- 主要內容區 -->
+    <main class="flex-grow max-w-7xl mx-auto w-full p-4 flex flex-col">
+        
+        <!-- 說明與搜尋區 -->
+        <div class="bg-white rounded-lg shadow-sm p-5 mb-6 border border-slate-200">
+            <!-- 加減分標準區塊 -->
+            <div class="flex flex-col lg:flex-row gap-4 mb-5">
+                <div class="flex-1 bg-blue-50 p-4 rounded-lg border border-blue-100">
+                    <p class="font-bold text-blue-800 mb-2 flex items-center gap-2"><i class="fas fa-clipboard-list text-blue-600"></i>計分與加減分標準</p>
+                    <ul class="list-disc list-inside text-sm text-slate-700 space-y-1 ml-1">
+                        <li><strong>基本分：</strong> 80 分</li>
+                        <li><strong>扣分標準：</strong> 一個缺點扣 1 分</li>
+                        <li><strong>加分標準：</strong> 表現優良加 1 分</li>
+                        <li><strong>懲處標準：</strong> <span class="text-red-600 font-bold">總分未達 70 分，罰做值日生一次</span></li>
+                    </ul>
+                </div>
+                <div class="flex-1 bg-slate-50 p-4 rounded-lg border border-slate-200">
+                    <p class="font-bold text-slate-700 mb-2 flex items-center gap-2"><i class="fas fa-tags text-slate-500"></i>常見扣分代碼參考</p>
+                    <div class="flex flex-wrap gap-2 text-xs">
+                        <span class="bg-white px-2 py-1.5 rounded border border-slate-300 shadow-sm text-slate-700"><strong>h</strong> : 作業未交/未帶</span>
+                        <span class="bg-white px-2 py-1.5 rounded border border-slate-300 shadow-sm text-slate-700"><strong>c</strong> : 遲到</span>
+                        <span class="bg-white px-2 py-1.5 rounded border border-slate-300 shadow-sm text-slate-700"><strong>d</strong> : 打掃不認真</span>
+                        <span class="bg-white px-2 py-1.5 rounded border border-slate-300 shadow-sm text-slate-700"><strong>p</strong> : 午休/課堂秩序</span>
+                        <span class="bg-white px-2 py-1.5 rounded border border-slate-300 shadow-sm text-slate-700"><strong>a</strong> : 升旗/早自修違規</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex flex-col sm:flex-row gap-4 items-center justify-end border-t border-slate-100 pt-4">
+                <!-- 搜尋列 -->
+                <div class="flex flex-col sm:flex-row gap-3 w-full sm:w-auto flex-grow justify-end">
+                    <div class="relative w-full sm:w-72">
+                        <input type="text" id="searchInput" placeholder="輸入姓名或座號查詢..." class="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition shadow-sm">
+                        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <i class="fas fa-search text-slate-400"></i>
+                        </div>
+                    </div>
+                    <button id="searchBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg font-bold transition shadow-sm flex items-center justify-center gap-2 sm:w-auto w-full">
+                        查詢
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 載入動畫 -->
+        <div id="loader" class="flex-grow flex flex-col items-center justify-center py-20 text-slate-500">
+            <i class="fas fa-spinner fa-spin text-4xl mb-4 text-blue-500"></i>
+            <p>正在同步 Google 試算表資料...</p>
+        </div>
+
+        <!-- 表格容器 -->
+        <div id="tableContainer" class="bg-white rounded-lg shadow-sm border border-slate-200 overflow-hidden hidden flex-grow relative">
+            <div class="overflow-x-auto w-full h-full max-h-[70vh]">
+                <table class="min-w-max w-full text-left border-collapse">
+                    <thead id="tableHead" class="bg-slate-100 text-slate-700 text-sm font-semibold sticky top-0 z-20 shadow-sm">
+                        <!-- 表頭由 JS 動態生成 -->
+                    </thead>
+                    <tbody id="tableBody" class="text-sm divide-y divide-slate-200">
+                        <!-- 內容由 JS 動態生成 -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        
+        <!-- 無搜尋結果提示 -->
+        <div id="noResults" class="hidden text-center py-10 bg-white rounded-lg shadow-sm border border-slate-200 mt-4 text-slate-500">
+            <i class="fas fa-user-slash text-3xl mb-2 text-slate-300"></i>
+            <p>找不到符合的學生資料</p>
+        </div>
+
+    </main>
+
+    <footer class="bg-slate-800 text-slate-400 text-center py-4 text-sm mt-auto">
+        &copy; <span id="currentYear"></span> 班級常規查詢系統 | Designed for Responsive Web
+    </footer>
+
+    <script>
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        // ==========================================
+        // 系統設定區
+        // ==========================================
+        // 🌟 請在此處貼上您發佈的 Google Apps Script 網頁應用程式網址 🌟
+        // 若保持空白，系統將自動使用下方內建的測試資料進行預覽。
+        const GOOGLE_APP_SCRIPT_URL = ""; 
+
+        // ==========================================
+        // 模擬測試資料 (根據您上傳的CSV設計)
+        // ==========================================
+        const mockData = {
+            "第5週": [
+                ["座號", "姓名", "總分", "星期四五", "扣", "星期一", "扣", "星期二", "扣", "星期三", "扣", "星期四", "扣", "星期五", "扣", "資源回收", "課堂表現", "週記國評", "打掃", "額外加分", "備註"],
+                ["1", "廖冠恒", "87", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "6", "1", "", "", "◎12點午休可借平板一次"],
+                ["2", "王塏翔", "86", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "5", "1", "", "", "◎10點免做值日生一次"],
+                ["3", "謝崴至", "88", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "6", "2", "", "", "◎20點免寫週記一次"],
+                ["4", "黃奕傑", "86", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "5", "1", "", "", "◎可兌換飲料或文具用品。"],
+                ["5", "陸宗承", "89", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "5", "4", "", "", ""],
+                ["6", "林辰耀", "85", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "5", "", "", "", ""],
+                ["7", "連為綸", "85", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "5", "", "", "", ""],
+                ["8", "陳彥儒", "85", "", "0", "", "0", "", "0", "", "0", "", "0", "", "0", "", "5", "", "", "", "a.早自修升旗不守規矩"]
+            ],
+            "第4週": [
+                ["座號", "姓名", "總分", "星期四五", "扣", "星期一", "扣", "星期二", "扣", "星期三", "扣", "星期四", "扣", "星期五", "扣", "資源回收", "課堂表現", "週記國評", "打掃", "額外加分", "備註"],
+                ["1", "廖冠恒", "88", "", "0", "", "0", "", "0", "", "0", "", "0", "1", "", "", "6", "1", "", "", "◎12點午休可借平板一次"],
+                ["2", "王塏翔", "68", "", "0", "", "0", "", "0", "h", "1", "", "", "", "", "", "5", "1", "", "", "◎10點免做值日生一次"],
+                ["3", "謝崴至", "90", "", "0", "", "0", "", "0", "", "0", "1", "1", "", "", "", "6", "2", "", "", "◎20點免寫週記一次"],
+                ["4", "黃奕傑", "87", "", "0", "", "0", "", "0", "", "0", "", "1", "", "", "", "5", "1", "", "", "◎可兌換飲料或文具用品。"]
+            ],
+            "第3週": [
+                ["座號", "姓名", "總分", "星期四五", "扣", "星期一", "扣", "星期二", "扣", "星期三", "扣", "星期四", "扣", "星期五", "扣", "資源回收", "課堂表現", "週記國評", "打掃", "額外加分", "備註"],
+                ["1", "廖冠恒", "88", "", "0", "", "0", "h", "1", "", "0", "", "0", "1", "1", "", "", "6", "1", "", "◎12點午休可借平板一次"],
+                ["2", "王塏翔", "77", "", "0", "hc", "2", "h", "1", "c", "1", "hd", "2", "", "1", "", "2", "", "", "", "◎10點免做值日生一次"],
+                ["3", "謝崴至", "91", "", "0", "", "0", "", "0", "", "0", "", "0", "2", "1", "", "6", "2", "", "", "◎20點免寫週記一次"]
+            ]
+        };
+
+        // 應用程式狀態
+        let appState = {
+            data: {},          // 儲存所有工作表的資料
+            sheetNames: [],    // 儲存工作表名稱 (用於下拉選單)
+            currentSheet: "",  // 目前選擇的工作表
+            currentData: [],   // 目前要顯示的過濾後資料
+            headers: []        // 目前資料的表頭
+        };
+
+        // DOM 元素
+        const dom = {
+            weekSelector: document.getElementById('weekSelector'),
+            loader: document.getElementById('loader'),
+            tableContainer: document.getElementById('tableContainer'),
+            tableHead: document.getElementById('tableHead'),
+            tableBody: document.getElementById('tableBody'),
+            searchInput: document.getElementById('searchInput'),
+            searchBtn: document.getElementById('searchBtn'),
+            noResults: document.getElementById('noResults'),
+            messageBox: document.getElementById('messageBox'),
+            messageText: document.getElementById('messageText')
+        };
+
+        // 顯示錯誤訊息
+        function showError(message) {
+            dom.messageText.textContent = message;
+            dom.messageBox.classList.remove('hidden');
+            dom.loader.classList.add('hidden');
+        }
+
+        // 初始化應用程式
+        async function initApp() {
+            try {
+                if (GOOGLE_APP_SCRIPT_URL) {
+                    // 真實模式：從 Google Apps Script 取得資料
+                    const response = await fetch(GOOGLE_APP_SCRIPT_URL);
+                    if (!response.ok) throw new Error('網路回應異常');
+                    const result = await response.json();
+                    
+                    if (result.status === 'success') {
+                        appState.data = result.data;
+                        appState.sheetNames = result.sheetNames;
+                    } else {
+                        throw new Error(result.message || '無法解析 Google 試算表資料');
+                    }
+                } else {
+                    // 測試模式：使用 Mock Data
+                    // 模擬網路延遲
+                    await new Promise(resolve => setTimeout(resolve, 800));
+                    appState.data = mockData;
+                    appState.sheetNames = Object.keys(mockData);
+                }
+
+                if (appState.sheetNames.length === 0) {
+                    throw new Error('找不到任何週次資料工作表');
+                }
+
+                // 建立下拉選單
+                buildDropdown();
+                
+                // 預設選擇第一個工作表 (最新的)
+                appState.currentSheet = appState.sheetNames[0];
+                dom.weekSelector.value = appState.currentSheet;
+                
+                // 隱藏載入中
+                dom.loader.classList.add('hidden');
+                
+                // 渲染資料
+                renderSheet(appState.currentSheet);
+
+            } catch (error) {
+                console.error("載入失敗:", error);
+                showError('資料載入失敗，請檢查網址或權限設定。(' + error.message + ')');
+            }
+        }
+
+        // 建立下拉選單選項
+        function buildDropdown() {
+            dom.weekSelector.innerHTML = '';
+            appState.sheetNames.forEach(sheetName => {
+                const option = document.createElement('option');
+                option.value = sheetName;
+                option.textContent = sheetName;
+                dom.weekSelector.appendChild(option);
+            });
+        }
+
+        // 處理資料並準備渲染
+        function renderSheet(sheetName) {
+            const rawData = appState.data[sheetName];
+            if (!rawData || rawData.length < 2) {
+                dom.tableBody.innerHTML = '<tr><td colspan="100%" class="text-center py-4 text-slate-500">該週無資料</td></tr>';
+                return;
+            }
+
+            // 提取表頭 (假設第一列是標題，如果 GAS 回傳有略過標題則第一列即為表頭)
+            let headers = rawData[0]; 
+            
+            // 處理表頭名稱，將相鄰的「扣」替換為關聯日期的精確名稱
+            appState.headers = headers.map((h, i) => {
+                let text = h ? String(h).trim() : '';
+                if (text === '' || text === '扣') {
+                    return headers[i-1] ? headers[i-1] + '_扣分' : '欄位' + i;
+                }
+                return text;
+            });
+
+            // 提取內容資料
+            const rows = rawData.slice(1);
+            
+            // 轉換為物件陣列方便搜尋
+            appState.currentData = rows.map(row => {
+                let obj = {};
+                appState.headers.forEach((h, i) => {
+                    obj[h] = row[i] !== undefined ? row[i] : '';
+                });
+                // 儲存原始陣列以便渲染
+                obj._raw = row; 
+                return obj;
+            });
+
+            renderTable(appState.currentData);
+        }
+
+        // 渲染表格 HTML (總表檢視)
+        function renderTable(dataArray) {
+            // 決定要顯示的欄位索引 (過濾掉名稱包含 '_扣分' 的分數欄位)
+            const visibleIndices = [];
+            appState.headers.forEach((header, index) => {
+                if (!header.includes('_扣分')) {
+                    visibleIndices.push(index);
+                }
+            });
+
+            // 繪製表頭
+            dom.tableHead.innerHTML = '';
+            const trHead = document.createElement('tr');
+            
+            visibleIndices.forEach((index) => {
+                const header = appState.headers[index];
+                const th = document.createElement('th');
+                th.className = 'py-3 px-4 whitespace-nowrap border-b border-slate-200';
+                th.textContent = header;
+                
+                // 固定前兩欄
+                if (index === 0) th.classList.add('sticky-col-1');
+                if (index === 1) th.classList.add('sticky-col-2');
+                
+                trHead.appendChild(th);
+            });
+            dom.tableHead.appendChild(trHead);
+
+            // 繪製內容
+            dom.tableBody.innerHTML = '';
+            
+            if (dataArray.length === 0) {
+                dom.tableContainer.classList.add('hidden');
+                dom.noResults.classList.remove('hidden');
+                return;
+            } else {
+                dom.tableContainer.classList.remove('hidden');
+                dom.noResults.classList.add('hidden');
+            }
+
+            dataArray.forEach((rowObj, rowIndex) => {
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-blue-50 transition duration-150';
+                
+                let totalScore = 100; // 預設安全值
+                
+                visibleIndices.forEach((colIndex) => {
+                    const header = appState.headers[colIndex];
+                    const td = document.createElement('td');
+                    td.className = 'py-2 px-4 border-b border-slate-100 whitespace-nowrap';
+                    let cellValue = rowObj._raw[colIndex] || '';
+                    
+                    // 固定前兩欄背景
+                    if (colIndex === 0) {
+                        td.classList.add('sticky-col-1', 'text-center', 'font-medium', 'text-slate-500');
+                    }
+                    if (colIndex === 1) {
+                        td.classList.add('sticky-col-2', 'font-bold', 'text-slate-800');
+                    }
+
+                    // 針對「總分」欄位做特殊樣式處理
+                    if (header.includes('總分')) {
+                        totalScore = parseInt(cellValue) || 0;
+                        td.classList.add('font-bold', 'text-lg');
+                        if (totalScore < 70) {
+                            td.classList.add('text-red-600');
+                            td.innerHTML = `${cellValue} <i class="fas fa-exclamation-triangle text-sm ml-1"></i>`;
+                        } else if (totalScore >= 85) {
+                            td.classList.add('text-green-600');
+                            td.textContent = cellValue;
+                        } else {
+                            td.classList.add('text-blue-600');
+                            td.textContent = cellValue;
+                        }
+                    } else {
+                        // 一般欄位: 針對星期欄位中的行為代碼稍微標紅顯示更清楚
+                        if (header.includes('星期') && cellValue !== '') {
+                             td.innerHTML = `<span class="text-red-500 font-bold">${cellValue}</span>`;
+                        } else {
+                             td.textContent = cellValue;
+                        }
+                    }
+                    
+                    tr.appendChild(td);
+                });
+                
+                // 如果低於 70，整列加上極淡的紅色背景警告
+                if (totalScore < 70) {
+                    tr.classList.add('bg-red-50', 'hover:bg-red-100');
+                    tr.classList.remove('hover:bg-blue-50');
+                }
+                
+                dom.tableBody.appendChild(tr);
+            });
+        }
+
+        // 搜尋邏輯獨立抽出
+        function performSearch() {
+            const keyword = dom.searchInput.value.toLowerCase().trim();
+            if (!keyword) {
+                renderTable(appState.currentData);
+                return;
+            }
+            
+            // 根據姓名或座號過濾
+            const filtered = appState.currentData.filter(row => {
+                const name = (row['姓名'] || '').toString().toLowerCase();
+                const seatNo = (row['座號'] || '').toString().toLowerCase();
+                return name.includes(keyword) || seatNo === keyword;
+            });
+            
+            renderTable(filtered);
+        }
+
+        // 監聽下拉選單切換
+        dom.weekSelector.addEventListener('change', (e) => {
+            appState.currentSheet = e.target.value;
+            dom.searchInput.value = ''; // 切換週次時清空搜尋
+            renderTable(appState.currentData);
+        });
+
+        // 監聽查詢按鈕點擊
+        dom.searchBtn.addEventListener('click', performSearch);
+        
+        // 監聽鍵盤 Enter 按下
+        dom.searchInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                performSearch();
+            }
+        });
+
+        // 啟動程式
+        window.addEventListener('DOMContentLoaded', initApp);
+
+    </script>
+</body>
+</html>
