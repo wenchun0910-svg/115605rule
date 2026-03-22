@@ -497,20 +497,18 @@
                             <span class="bg-slate-700 text-white rounded-full h-7 w-7 flex items-center justify-center font-bold text-sm shadow-sm">${seatNo}</span>
                             <h4 class="font-bold text-slate-800 text-lg">${name}</h4>
                         </div>
-                        <h5 class="text-xs font-bold text-slate-500 border-b border-slate-100 pb-1 flex items-center gap-1">
+                        <h5 class="text-xs font-bold text-slate-500 border-b border-slate-100 pb-1 mb-1 flex items-center gap-1">
                             <i class="fas fa-calendar-times text-red-400"></i> 常規扣分紀錄
                         </h5>
-                        <ul class="space-y-2">
+                        <div class="flex flex-wrap gap-2">
                             ${dailyDeductions.map(d => `
-                                <li class="flex justify-between items-start text-sm bg-slate-50 p-2 rounded border border-slate-100">
-                                    <span class="font-medium text-slate-700">${d.day}</span>
-                                    <div class="text-right flex flex-col items-end">
-                                        ${d.reason ? `<span class="text-red-600 font-bold mb-1">${d.reason}</span>` : ''}
-                                        <span class="text-red-500 text-xs bg-red-100 px-1.5 py-0.5 rounded">扣 ${d.amount || 0} 分</span>
-                                    </div>
-                                </li>
+                                <div class="flex flex-col items-center justify-center bg-slate-50 p-2 rounded-lg border border-slate-200 min-w-[5rem] shadow-sm hover:shadow-md transition">
+                                    <span class="text-xs font-medium text-slate-600 mb-1">${d.day}</span>
+                                    ${d.reason ? `<span class="text-red-600 font-extrabold text-lg leading-none mb-1.5">${d.reason}</span>` : '<span class="text-slate-300 font-bold text-lg leading-none mb-1.5">-</span>'}
+                                    <span class="text-red-600 text-[11px] font-bold bg-red-100 px-2 py-0.5 rounded-full whitespace-nowrap">扣 ${d.amount || 0} 分</span>
+                                </div>
                             `).join('')}
-                        </ul>
+                        </div>
                     `;
                     gridContainer.appendChild(card);
                 }
