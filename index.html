@@ -155,6 +155,11 @@
             <p>找不到符合的學生資料</p>
         </div>
 
+        <!-- 獨立的行為扣分紀錄區塊 -->
+        <div id="behaviorContainer" class="hidden flex flex-col gap-4 mt-6">
+            <!-- 由 JS 動態生成 -->
+        </div>
+
     </main>
 
     <footer class="bg-slate-800 text-slate-400 text-center py-4 text-sm mt-auto">
@@ -217,6 +222,7 @@
             tableContainer: document.getElementById('tableContainer'),
             tableHead: document.getElementById('tableHead'),
             tableBody: document.getElementById('tableBody'),
+            behaviorContainer: document.getElementById('behaviorContainer'),
             searchInput: document.getElementById('searchInput'),
             searchBtn: document.getElementById('searchBtn'),
             noResults: document.getElementById('noResults'),
@@ -322,7 +328,13 @@
                 return obj;
             });
 
-            renderTable(appState.currentData);
+            updateView(appState.currentData);
+        }
+
+        // 更新畫面 (包含表格與下方扣分紀錄)
+        function updateView(dataArray) {
+            renderTable(dataArray);
+            renderBehaviors(dataArray);
         }
 
         // 渲染表格 HTML (總表檢視)
@@ -421,11 +433,90 @@
             });
         }
 
+        // 渲染下方獨立的行為扣分紀錄
+        function renderBehaviors(dataArray) {
+            const container = dom.behaviorContainer;
+            container.innerHTML = '';
+            
+            if (dataArray.length === 0) {
+                container.classList.add('hidden');
+                return;
+            }
+
+            let hasAnyDeductions = false;
+            
+            // 加入區塊標題
+            const sectionTitle = document.createElement('h3');
+            sectionTitle.className = 'text-lg font-bold text-slate-700 mt-2 border-b border-slate-200 pb-2 flex items-center gap-2';
+            sectionTitle.innerHTML = '<i class="fas fa-clipboard-list text-blue-500"></i> 學生詳細扣分紀錄';
+            container.appendChild(sectionTitle);
+
+            const gridContainer = document.createElement('div');
+            gridContainer.className = 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4';
+            container.appendChild(gridContainer);
+
+            dataArray.forEach(rowObj => {
+                const seatNo = rowObj._raw[0] || '';
+                const name = rowObj._raw[1] || '';
+                
+                const dailyDeductions = [];
+                
+                // 提取扣分資料
+                for(let i = 0; i < appState.headers.length; i++) {
+                    let h = appState.headers[i];
+                    if (i + 1 < appState.headers.length && appState.headers[i+1].includes('_扣分')) {
+                        let behavior = rowObj._raw[i] !== undefined ? String(rowObj._raw[i]).trim() : '';
+                        let amount = rowObj._raw[i+1] !== undefined ? String(rowObj._raw[i+1]).trim() : '';
+                        // 若有行為紀錄，或扣分大於0，就列出來
+                        if (behavior !== '' || (amount !== '' && amount !== '0')) {
+                            dailyDeductions.push({ day: h, reason: behavior, amount: amount || '0' });
+                        }
+                        i++; // 跳過下一個 _扣分 欄位
+                    }
+                }
+
+                if (dailyDeductions.length > 0) {
+                    hasAnyDeductions = true;
+                    const card = document.createElement('div');
+                    card.className = 'bg-white p-4 rounded-lg shadow-sm border border-red-100 flex flex-col gap-3';
+                    
+                    card.innerHTML = `
+                        <div class="flex items-center gap-2 mb-1">
+                            <span class="bg-slate-700 text-white rounded-full h-7 w-7 flex items-center justify-center font-bold text-sm shadow-sm">${seatNo}</span>
+                            <h4 class="font-bold text-slate-800 text-lg">${name}</h4>
+                        </div>
+                        <h5 class="text-xs font-bold text-slate-500 border-b border-slate-100 pb-1 flex items-center gap-1">
+                            <i class="fas fa-calendar-times text-red-400"></i> 常規扣分紀錄
+                        </h5>
+                        <ul class="space-y-2">
+                            ${dailyDeductions.map(d => `
+                                <li class="flex justify-between items-start text-sm bg-slate-50 p-2 rounded border border-slate-100">
+                                    <span class="font-medium text-slate-700">${d.day}</span>
+                                    <div class="text-right flex flex-col items-end">
+                                        ${d.reason ? `<span class="text-red-600 font-bold mb-1">${d.reason}</span>` : ''}
+                                        <span class="text-red-500 text-xs bg-red-100 px-1.5 py-0.5 rounded">扣 ${d.amount || 0} 分</span>
+                                    </div>
+                                </li>
+                            `).join('')}
+                        </ul>
+                    `;
+                    gridContainer.appendChild(card);
+                }
+            });
+
+            // 如果畫面上的人都沒有扣分，就隱藏這個區塊
+            if (hasAnyDeductions) {
+                container.classList.remove('hidden');
+            } else {
+                container.classList.add('hidden');
+            }
+        }
+
         // 搜尋邏輯獨立抽出
         function performSearch() {
             const keyword = dom.searchInput.value.toLowerCase().trim();
             if (!keyword) {
-                renderTable(appState.currentData);
+                updateView(appState.currentData);
                 return;
             }
             
@@ -436,14 +527,14 @@
                 return name.includes(keyword) || seatNo === keyword;
             });
             
-            renderTable(filtered);
+            updateView(filtered);
         }
 
         // 監聽下拉選單切換
         dom.weekSelector.addEventListener('change', (e) => {
             appState.currentSheet = e.target.value;
             dom.searchInput.value = ''; // 切換週次時清空搜尋
-            renderTable(appState.currentData);
+            renderSheet(appState.currentSheet); // 修正 Bug：原本這裡寫錯變數，現已改為重新渲染整張工作表
         });
 
         // 監聽查詢按鈕點擊
